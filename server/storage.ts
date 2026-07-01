@@ -1,13 +1,26 @@
-import { users } from '@shared/schema';
-import type { User, InsertUser } from '@shared/schema';
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
+// Data access layer, backed by Supabase Postgres via Drizzle ORM.
+// Same IStorage interface as before, so existing routes keep working.
+// Used by both the Express dev server and the Vercel serverless API.
+
+import "dotenv/config";
+import { users } from "@shared/schema";
+import type { User, InsertUser } from "@shared/schema";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { eq } from "drizzle-orm";
 
-const sqlite = new Database("data.db");
-sqlite.pragma("journal_mode = WAL");
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required (see .env.example)");
+}
 
-export const db = drizzle(sqlite);
+const client = postgres(process.env.DATABASE_URL, {
+  max: 1,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  prepare: false,
+});
+
+export const db = drizzle(client);
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -17,15 +30,22 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: number): Promise<User | undefined> {
-    return db.select().from(users).where(eq(users.id, id)).get();
+    const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return rows[0];
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return db.select().from(users).where(eq(users.username, username)).get();
+    const rows = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username))
+      .limit(1);
+    return rows[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    return db.insert(users).values(insertUser).returning().get();
+    const rows = await db.insert(users).values(insertUser).returning();
+    return rows[0];
   }
 }
 
