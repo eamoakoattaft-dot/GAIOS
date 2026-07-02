@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppLayout } from "@/components/layout";
+import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { ProtectedApp } from "@/components/protected-route";
 
 import Overview from "@/pages/overview";
 import Grants from "@/pages/grants";
@@ -16,6 +18,8 @@ import Curriculum from "@/pages/curriculum";
 import Agents from "@/pages/agents";
 import Templates from "@/pages/templates";
 import Launch from "@/pages/launch";
+import LoginPage from "@/pages/login";
+import SignupPage from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -35,17 +39,42 @@ function AppRouter() {
   );
 }
 
+/** Routes that must be reachable without a session (login/signup). */
+function PublicRouter() {
+  return (
+    <Switch>
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignupPage} />
+      <Route>
+        <ProtectedApp>
+          <AppLayout>
+            <AppRouter />
+          </AppLayout>
+        </ProtectedApp>
+      </Route>
+    </Switch>
+  );
+}
+
+function Shell() {
+  // Reads session so a signed-in user hitting /login gets bounced to /.
+  const { session, loading } = useAuth();
+  if (loading) return null;
+  return <PublicRouter />;
+  void session; // reserved for future redirect logic
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TooltipProvider>
           <Toaster />
-          <Router hook={useHashLocation}>
-            <AppLayout>
-              <AppRouter />
-            </AppLayout>
-          </Router>
+          <AuthProvider>
+            <Router hook={useHashLocation}>
+              <Shell />
+            </Router>
+          </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
