@@ -2,7 +2,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { LogoWordmark } from "@/components/logo";
-import { Building2 } from "lucide-react";
+import { Building2, Rocket } from "lucide-react";
 
 export default function NoOrgPage() {
   const { user, signOut } = useAuth();
@@ -14,13 +14,23 @@ export default function NoOrgPage() {
           <div className="flex justify-center mb-2"><Building2 className="h-10 w-10 text-muted-foreground" /></div>
           <CardTitle>You're not on any team yet</CardTitle>
           <CardDescription>
-            You're signed in as <strong>{user?.email}</strong>, but no organization has added you yet.
-            Ask your Executive Director or Research Sponsored Officer to send you an invite.
+            You're signed in as <strong>{user?.email}</strong>. Set up a new organization,
+            or wait for someone to invite you to theirs.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground text-center">
-            Once you accept an invite, you'll see your GAIOS workspace here.
+          <Button
+            className="w-full"
+            onClick={() => {
+              // Hash router: navigate to /onboarding
+              window.location.hash = "/onboarding";
+            }}
+          >
+            <Rocket className="mr-2 h-4 w-4" />
+            Set up your organization
+          </Button>
+          <p className="text-xs text-muted-foreground text-center pt-1">
+            Or ask your Executive Director / Research Sponsored Officer for an invite link.
           </p>
           <Button variant="outline" className="w-full" onClick={signOut}>
             Sign out

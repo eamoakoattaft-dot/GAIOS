@@ -27,3 +27,20 @@ export function ProtectedApp({ children }: { children: ReactNode }) {
 
   return <>{children}</>;
 }
+
+/**
+ * Lighter gate: session required, but no org membership required.
+ * Used by /onboarding.
+ */
+export function RequireSession({ children }: { children: ReactNode }) {
+  const { loading, session } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-dvh grid place-items-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!session) return <LoginPage />;
+  return <>{children}</>;
+}

@@ -7,7 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppLayout } from "@/components/layout";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
-import { ProtectedApp } from "@/components/protected-route";
+import { ProtectedApp, RequireSession } from "@/components/protected-route";
 
 import Overview from "@/pages/overview";
 import Grants from "@/pages/grants";
@@ -20,6 +20,7 @@ import Templates from "@/pages/templates";
 import Launch from "@/pages/launch";
 import LoginPage from "@/pages/login";
 import SignupPage from "@/pages/signup";
+import OnboardingPage from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -45,6 +46,12 @@ function PublicRouter() {
     <Switch>
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
+      {/* Onboarding: needs a session but NOT a membership. */}
+      <Route path="/onboarding">
+        <RequireSession>
+          <OnboardingPage />
+        </RequireSession>
+      </Route>
       <Route>
         <ProtectedApp>
           <AppLayout>

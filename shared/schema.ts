@@ -32,7 +32,8 @@ import { relations } from "drizzle-orm";
 // ENUMS
 // ============================================================
 
-// 8 roles from client/src/lib/data.ts ROLES constant.
+// 9 roles. First 8 come from client/src/lib/data.ts ROLES constant.
+// 'it' added in migration 0002 for tech/setup users (admin-equivalent).
 export const roleEnum = pgEnum("role", [
   "ed",           // Executive Director / AOR
   "rso",          // Director, Research Support Office
@@ -42,6 +43,7 @@ export const roleEnum = pgEnum("role", [
   "reviewer",     // Reviewer / Advisor
   "compliance",   // Compliance Officer
   "board",        // Board Observer
+  "it",           // IT / tech setup (admin-equivalent, temporary)
 ]);
 
 // Lifecycle stage from LIFECYCLE_STAGES (id keys).

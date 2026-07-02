@@ -8,17 +8,20 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
+export type Role =
+  | "ed"
+  | "rso"
+  | "gm"
+  | "fco"
+  | "pi"
+  | "reviewer"
+  | "compliance"
+  | "board"
+  | "it";
+
 type Membership = {
   org_id: string;
-  role:
-    | "ed"
-    | "rso"
-    | "gm"
-    | "fco"
-    | "pi"
-    | "reviewer"
-    | "compliance"
-    | "board";
+  role: Role;
   status: "pending" | "active" | "suspended";
   org: { id: string; name: string; slug: string };
 };
