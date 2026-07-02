@@ -21,6 +21,8 @@ import Launch from "@/pages/launch";
 import LoginPage from "@/pages/login";
 import SignupPage from "@/pages/signup";
 import OnboardingPage from "@/pages/onboarding";
+import TeamPage from "@/pages/team";
+import AcceptInvitePage from "@/pages/accept-invite";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
@@ -35,6 +37,7 @@ function AppRouter() {
       <Route path="/agents" component={Agents} />
       <Route path="/templates" component={Templates} />
       <Route path="/launch" component={Launch} />
+      <Route path="/team" component={TeamPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -46,11 +49,14 @@ function PublicRouter() {
     <Switch>
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
-      {/* Onboarding: needs a session but NOT a membership. */}
+      {/* Onboarding + accept-invite need a session but NOT a membership. */}
       <Route path="/onboarding">
         <RequireSession>
           <OnboardingPage />
         </RequireSession>
+      </Route>
+      <Route path="/accept-invite">
+        <AcceptInvitePage />
       </Route>
       <Route>
         <ProtectedApp>

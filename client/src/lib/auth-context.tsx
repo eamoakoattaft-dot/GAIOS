@@ -118,10 +118,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (evt, s) => {
       setSession(s);
       if (s?.user) {
         await loadProfileAndMemberships(s.user.id);
+        // If a pending invite token is stashed (from /accept-invite), resume the flow.
+        if (evt === "SIGNED_IN") {
+          const pending = localStorage.getItem("gaios-pending-invite");
+          if (pending) {
+            localStorage.removeItem("gaios-pending-invite");
+            window.location.hash = `/accept-invite?token=${pending}`;
+          }
+        }
       } else {
         setProfile(null);
         setMemberships([]);

@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Rocket,
   Bot,
+  Users,
   Moon,
   Sun,
   Menu,
@@ -20,8 +21,15 @@ import { useTheme } from "@/components/theme-provider";
 import { LogoWordmark, Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth-context";
 
-type NavItem = { href: string; label: string; icon: any; testid: string };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: any;
+  testid: string;
+  adminOnly?: boolean;
+};
 
 const NAV: NavItem[] = [
   { href: "/", label: "Executive Overview", icon: LayoutDashboard, testid: "nav-overview" },
@@ -33,12 +41,18 @@ const NAV: NavItem[] = [
   { href: "/agents", label: "AI Agents", icon: Bot, testid: "nav-agents" },
   { href: "/templates", label: "Templates", icon: ClipboardList, testid: "nav-templates" },
   { href: "/launch", label: "90-Day Launch", icon: Rocket, testid: "nav-launch" },
+  { href: "/team", label: "Team", icon: Users, testid: "nav-team", adminOnly: true },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { theme, toggle } = useTheme();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { activeRole, memberships, activeOrgId } = useAuth();
+
+  const isAdmin = activeRole === "ed" || activeRole === "rso" || activeRole === "it";
+  const activeOrg = memberships.find((m) => m.org_id === activeOrgId)?.org;
+  const visibleNav = NAV.filter((n) => !n.adminOnly || isAdmin);
 
   const isActive = (href: string) => {
     if (href === "/") return location === "/" || location === "";
@@ -80,9 +94,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="hidden md:flex items-center gap-2 px-5 py-5 border-b border-sidebar-border">
           <LogoWordmark />
         </div>
+        {activeOrg && (
+          <div className="hidden md:block px-5 pt-3 pb-1 text-[11px] text-sidebar-foreground/60">
+            Organization
+            <div className="text-[13px] text-sidebar-foreground font-medium tracking-tight mt-0.5" data-testid="active-org">
+              {activeOrg.name}
+            </div>
+          </div>
+        )}
 
         <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (
