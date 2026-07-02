@@ -72,7 +72,13 @@ function PublicRouter() {
 function Shell() {
   // Reads session so a signed-in user hitting /login gets bounced to /.
   const { session, loading } = useAuth();
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "system-ui, sans-serif", color: "#666", fontSize: 13 }}>
+        Loading GAIOS…
+      </div>
+    );
+  }
   return <PublicRouter />;
   void session; // reserved for future redirect logic
 }

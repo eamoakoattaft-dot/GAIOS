@@ -73,14 +73,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   async function loadProfileAndMemberships(uid: string) {
-    const [{ data: prof }, { data: mem }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
-      supabase
-        .from("memberships")
-        .select("org_id, role, status, org:organizations(id, name, slug)")
-        .eq("user_id", uid)
-        .eq("status", "active"),
-    ]);
+    // Wrap each query in a 6s timeout so a hanging fetch can't freeze boot.
+    const withTimeout = <T,>(p: PromiseLike<T>, label: string): Promise<T> =>
+      Promise.race([
+        Promise.resolve(p),
+        new Promise<T>((_, rej) =>
+          setTimeout(() => rej(new Error(`${label} timed out after 6s`)), 6000)
+        ),
+      ]);
+
+    let prof: any = null;
+    let mem: any = null;
+    try {
+      const [pRes, mRes] = await Promise.all([
+        withTimeout(
+          supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
+          "profiles query"
+        ),
+        withTimeout(
+          supabase
+            .from("memberships")
+            .select("org_id, role, status, org:organizations(id, name, slug)")
+            .eq("user_id", uid)
+            .eq("status", "active"),
+          "memberships query"
+        ),
+      ]);
+      prof = (pRes as any).data;
+      mem = (mRes as any).data;
+      if ((pRes as any).error) console.error("[auth] profiles error", (pRes as any).error);
+      if ((mRes as any).error) console.error("[auth] memberships error", (mRes as any).error);
+    } catch (e) {
+      console.error("[auth] loadProfileAndMemberships failed", e);
+    }
     setProfile((prof as Profile) ?? null);
     const list = (mem as unknown as Membership[]) ?? [];
     setMemberships(list);
@@ -108,14 +133,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setSession(data.session);
-      if (data.session?.user) {
-        await loadProfileAndMemberships(data.session.user.id);
+    // Hard safety net: never leave the app in a permanent loading state.
+    const failsafe = window.setTimeout(() => {
+      if (mounted) {
+        console.warn("[auth] initial load exceeded 8s, forcing loading=false");
+        setLoading(false);
       }
-      setLoading(false);
+    }, 8000);
+
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setSession(data.session);
+        if (data.session?.user) {
+          await loadProfileAndMemberships(data.session.user.id);
+        }
+      } catch (e) {
+        console.error("[auth] initial load failed", e);
+      } finally {
+        if (mounted) {
+          window.clearTimeout(failsafe);
+          setLoading(false);
+        }
+      }
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (evt, s) => {
@@ -139,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+      window.clearTimeout(failsafe);
       sub.subscription.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
