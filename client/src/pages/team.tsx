@@ -96,7 +96,7 @@ export default function TeamPage() {
         supabase
           .from("memberships")
           .select(
-            "id, role, status, joined_at, profile:profiles(id, email, display_name)"
+            "id, role, status, joined_at, profile:profiles!memberships_user_id_profiles_id_fk(id, email, display_name)"
           )
           .eq("org_id", activeOrgId)
           .eq("status", "active")
