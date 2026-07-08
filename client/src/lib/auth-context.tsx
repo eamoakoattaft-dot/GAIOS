@@ -55,13 +55,18 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// TEMPORARY: public demo mode. Auth is bypassed so anyone with the URL can
+// view + edit the app. Every session is treated as an anonymous member of
+// CSTEM Global with `it` role so pages that read activeOrgId/activeRole work.
+const PUBLIC_DEMO_ORG_ID = "b333f317-68b4-4f11-b053-0d8116e3335c";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [activeOrgId, setActiveOrgIdState] = useState<string | null>(() =>
-    localStorage.getItem("gaios-active-org")
+  const [activeOrgId, setActiveOrgIdState] = useState<string | null>(
+    PUBLIC_DEMO_ORG_ID
   );
 
   const user = session?.user ?? null;
@@ -131,58 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    let mounted = true;
-
-    // Hard safety net: never leave the app in a permanent loading state.
-    const failsafe = window.setTimeout(() => {
-      if (mounted) {
-        console.warn("[auth] initial load exceeded 8s, forcing loading=false");
-        setLoading(false);
-      }
-    }, 8000);
-
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!mounted) return;
-        setSession(data.session);
-        if (data.session?.user) {
-          await loadProfileAndMemberships(data.session.user.id);
-        }
-      } catch (e) {
-        console.error("[auth] initial load failed", e);
-      } finally {
-        if (mounted) {
-          window.clearTimeout(failsafe);
-          setLoading(false);
-        }
-      }
-    })();
-
-    const { data: sub } = supabase.auth.onAuthStateChange(async (evt, s) => {
-      setSession(s);
-      if (s?.user) {
-        await loadProfileAndMemberships(s.user.id);
-        // If a pending invite token is stashed (from /accept-invite), resume the flow.
-        if (evt === "SIGNED_IN") {
-          const pending = localStorage.getItem("gaios-pending-invite");
-          if (pending) {
-            localStorage.removeItem("gaios-pending-invite");
-            window.location.hash = `/accept-invite?token=${pending}`;
-          }
-        }
-      } else {
-        setProfile(null);
-        setMemberships([]);
-        setActiveOrgId(null);
-      }
-    });
-
-    return () => {
-      mounted = false;
-      window.clearTimeout(failsafe);
-      sub.subscription.unsubscribe();
-    };
+    // public demo mode: no supabase.auth calls at boot, no loading screen,
+    // no auto-logout. activeOrgId is preloaded to CSTEM Global.
+    localStorage.setItem("gaios-active-org", PUBLIC_DEMO_ORG_ID);
+    setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -193,8 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     memberships,
     activeOrgId,
-    activeRole:
-      memberships.find((m) => m.org_id === activeOrgId)?.role ?? null,
+    // public demo mode: fixed `it` role so admin-gated UI stays visible.
+    activeRole: "it",
     setActiveOrgId,
     async signInWithPassword(email, password) {
       const { error } = await supabase.auth.signInWithPassword({

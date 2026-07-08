@@ -6,8 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppLayout } from "@/components/layout";
-import { AuthProvider, useAuth } from "@/lib/auth-context";
-import { ProtectedApp, RequireSession } from "@/components/protected-route";
+import { AuthProvider } from "@/lib/auth-context";
 
 import Overview from "@/pages/overview";
 import Grants from "@/pages/grants";
@@ -18,13 +17,10 @@ import Curriculum from "@/pages/curriculum";
 import Agents from "@/pages/agents";
 import Templates from "@/pages/templates";
 import Launch from "@/pages/launch";
-import LoginPage from "@/pages/login";
-import SignupPage from "@/pages/signup";
-import OnboardingPage from "@/pages/onboarding";
-import TeamPage from "@/pages/team";
-import AcceptInvitePage from "@/pages/accept-invite";
 import NotFound from "@/pages/not-found";
 
+// TEMPORARY: public demo mode — auth bypassed so ED and team can access the app.
+// Team, onboarding, accept-invite, login, signup routes are intentionally not registered.
 function AppRouter() {
   return (
     <Switch>
@@ -37,50 +33,18 @@ function AppRouter() {
       <Route path="/agents" component={Agents} />
       <Route path="/templates" component={Templates} />
       <Route path="/launch" component={Launch} />
-      <Route path="/team" component={TeamPage} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-/** Routes that must be reachable without a session (login/signup). */
-function PublicRouter() {
-  return (
-    <Switch>
-      <Route path="/login" component={LoginPage} />
-      <Route path="/signup" component={SignupPage} />
-      {/* Onboarding + accept-invite need a session but NOT a membership. */}
-      <Route path="/onboarding">
-        <RequireSession>
-          <OnboardingPage />
-        </RequireSession>
-      </Route>
-      <Route path="/accept-invite">
-        <AcceptInvitePage />
-      </Route>
-      <Route>
-        <ProtectedApp>
-          <AppLayout>
-            <AppRouter />
-          </AppLayout>
-        </ProtectedApp>
-      </Route>
-    </Switch>
-  );
-}
-
 function Shell() {
-  // Reads session so a signed-in user hitting /login gets bounced to /.
-  const { session, loading } = useAuth();
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "system-ui, sans-serif", color: "#666", fontSize: 13 }}>
-        Loading GAIOS…
-      </div>
-    );
-  }
-  return <PublicRouter />;
-  void session; // reserved for future redirect logic
+  // public demo mode: render app immediately, no session gate, no loading screen.
+  return (
+    <AppLayout>
+      <AppRouter />
+    </AppLayout>
+  );
 }
 
 function App() {
