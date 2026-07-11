@@ -358,6 +358,8 @@ function GrantManagerLive() {
   const [statusFilter, setStatusFilter] = useState<"pending" | "all">("pending");
   const [modal, setModal] = useState<ApprovalModalState>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
 
   const loadData = useCallback(async () => {
     if (!activeOrgId) return;
@@ -392,6 +394,17 @@ function GrantManagerLive() {
     if (statusFilter === "pending") return recs.filter((r) => r.status === "pending");
     return recs;
   }, [recs, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  useEffect(() => {
+    // Reset to first page whenever the filter changes or the visible set shrinks
+    setPage(1);
+  }, [statusFilter]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const paged = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
   const kpiPending = recs.filter((r) => r.status === "pending").length;
   const kpiApproved = recs.filter((r) => r.status === "approved").length;
@@ -573,7 +586,7 @@ function GrantManagerLive() {
                 </tr>
               )}
               {!loading &&
-                filtered.map((r) => {
+                paged.map((r) => {
                   const ext = r.external;
                   const days = r.rationale?.days_to_deadline;
                   return (
@@ -663,6 +676,35 @@ function GrantManagerLive() {
             </tbody>
           </table>
         </div>
+
+        {!loading && filtered.length > 0 && (
+          <div className="mt-3 flex items-center justify-between text-[11.5px]" data-testid="pagination-controls">
+            <div className="text-muted-foreground tabular-nums">
+              Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filtered.length)} of {filtered.length}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                data-testid="page-prev"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ← Prev
+              </button>
+              <span className="tabular-nums text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                data-testid="page-next"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       <ApprovalModal state={modal} onClose={() => setModal(null)} onSubmit={submitApproval} />
