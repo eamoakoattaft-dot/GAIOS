@@ -186,6 +186,9 @@ type Recommendation = {
     matched_naics?: string[];
     excluded_set_aside?: string | null;
     days_to_deadline?: number | null;
+    eligibility_flags?: Array<{ code: string; label: string; penalty: number; disqualify?: boolean }>;
+    eligibility_penalty?: number;
+    disqualified?: boolean;
   };
   status: "pending" | "approved" | "declined" | "partner_review";
   generated_at: string;
@@ -529,7 +532,7 @@ function GrantManagerLive() {
           <KPI label="Opportunities scored" value={kpiTotal} delta={`${lastGrantsRun?.opportunities_new ?? 0} new run`} trend="up" testid="kpi-gm-total" />
           <KPI label="Pending review" value={kpiPending} delta="human gate" trend="flat" testid="kpi-gm-pending" />
           <KPI label="Approved to pursue" value={kpiApproved} delta="in pipeline" trend="up" testid="kpi-gm-approved" />
-          <KPI label="Average score" value={`${kpiAvg}`} delta="0–100" trend="flat" hint="Rule-based scorer v1" testid="kpi-gm-avg" />
+          <KPI label="Average score" value={`${kpiAvg}`} delta="0–100" trend="flat" hint="Rule-based scorer v2 (eligibility-aware)" testid="kpi-gm-avg" />
         </div>
 
         <div className="flex items-center justify-between mb-3">
@@ -605,6 +608,26 @@ function GrantManagerLive() {
                           {ext?.source} · {ext?.opportunity_number ?? ext?.notice_id}
                           {r.rationale?.matched_keywords?.length ? ` · kw: ${r.rationale.matched_keywords.slice(0, 3).join(", ")}` : ""}
                         </div>
+                        {r.rationale?.eligibility_flags && r.rationale.eligibility_flags.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1" data-testid={`eligibility-flags-${r.id}`}>
+                            {r.rationale.eligibility_flags.map((f) => (
+                              <span
+                                key={f.code}
+                                title={`${f.label} (${f.penalty > 0 ? "-" : "+"}${Math.abs(f.penalty)} pts)`}
+                                className={cn(
+                                  "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                                  f.disqualify
+                                    ? "bg-[hsl(var(--status-danger)/0.16)] text-[hsl(var(--status-danger))]"
+                                    : f.penalty < 0
+                                      ? "bg-[hsl(var(--status-success)/0.14)] text-[hsl(var(--status-success))]"
+                                      : "bg-[hsl(var(--status-warning)/0.14)] text-[hsl(var(--status-warning))]"
+                                )}
+                              >
+                                {f.label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-muted-foreground">{ext?.agency ?? "—"}</td>
                       <td className="py-2.5 px-3 tabular-nums text-muted-foreground">
@@ -713,6 +736,178 @@ function GrantManagerLive() {
 }
 
 // ---------------------------------------------------------------------
+// Fiscal Sponsors card
+// ---------------------------------------------------------------------
+type FiscalSponsor = {
+  id: string;
+  name: string;
+  website: string | null;
+  model: string | null;
+  admin_fee: string | null;
+  sector_focus: string | null;
+  minimum_project_size: string | null;
+  application_process: string | null;
+  geographic_scope: string | null;
+  contact: string | null;
+  fit_rationale: string | null;
+  fit_tier: "top" | "strong" | "consider" | "excluded";
+  sort_order: number;
+};
+
+function FiscalSponsorsCard() {
+  const [sponsors, setSponsors] = useState<FiscalSponsor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("fiscal_sponsors")
+        .select("*")
+        .order("sort_order", { ascending: true });
+      if (!error) setSponsors((data as FiscalSponsor[]) ?? []);
+      setLoading(false);
+    })();
+  }, []);
+
+  const visible = showExcluded ? sponsors : sponsors.filter((s) => s.fit_tier !== "excluded");
+  const excludedCount = sponsors.filter((s) => s.fit_tier === "excluded").length;
+
+  const tierChip = (tier: FiscalSponsor["fit_tier"]) => {
+    const label =
+      tier === "top" ? "Top fit" : tier === "strong" ? "Strong fit" : tier === "consider" ? "Consider" : "Not a fit";
+    const cls =
+      tier === "top"
+        ? "bg-[hsl(var(--status-success)/0.16)] text-[hsl(var(--status-success))]"
+        : tier === "strong"
+          ? "bg-primary/12 text-primary"
+          : tier === "consider"
+            ? "bg-secondary text-secondary-foreground"
+            : "bg-[hsl(var(--status-danger)/0.14)] text-[hsl(var(--status-danger))]";
+    return <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-medium", cls)}>{label}</span>;
+  };
+
+  return (
+    <SectionCard
+      title="Fiscal sponsors — shortlist"
+      subtitle="US fiscal sponsors matched to a brand-new 501(c)(3) with Ghana/West Africa focus. Backup path for pursuing federal grants before CSTEM Global has independent track record."
+      actions={
+        excludedCount > 0 && (
+          <button
+            data-testid="toggle-excluded-sponsors"
+            onClick={() => setShowExcluded((v) => !v)}
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+          >
+            {showExcluded ? "Hide" : "Show"} {excludedCount} excluded
+          </button>
+        )
+      }
+      className="mt-6"
+      testid="card-fiscal-sponsors"
+    >
+      {loading && <div className="py-6 text-center text-muted-foreground text-[12px]">Loading sponsors…</div>}
+      {!loading && visible.length === 0 && (
+        <div className="py-6 text-center text-muted-foreground text-[12px]">No sponsors loaded yet.</div>
+      )}
+      {!loading && visible.length > 0 && (
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {visible.map((s) => {
+            const open = expandedId === s.id;
+            return (
+              <div
+                key={s.id}
+                data-testid={`sponsor-card-${s.id}`}
+                className={cn(
+                  "rounded-lg border p-3 transition-colors",
+                  s.fit_tier === "top"
+                    ? "border-[hsl(var(--status-success)/0.5)] bg-[hsl(var(--status-success)/0.05)]"
+                    : s.fit_tier === "strong"
+                      ? "border-primary/40 bg-primary/5"
+                      : s.fit_tier === "excluded"
+                        ? "border-card-border bg-background/30 opacity-70"
+                        : "border-card-border bg-background/45"
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="text-[13px] font-semibold tracking-tight text-foreground">
+                      {s.website ? (
+                        <a href={s.website} target="_blank" rel="noreferrer" className="hover:underline">
+                          {s.name}
+                        </a>
+                      ) : (
+                        s.name
+                      )}
+                    </h3>
+                    {s.model && <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug">{s.model}</p>}
+                  </div>
+                  {tierChip(s.fit_tier)}
+                </div>
+
+                <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11.5px]">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Fee</div>
+                    <div className="text-foreground">{s.admin_fee ?? "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Geography</div>
+                    <div className="text-foreground">{s.geographic_scope ?? "—"}</div>
+                  </div>
+                </div>
+
+                {open && (
+                  <div className="mt-3 space-y-2 border-t border-border pt-2.5 text-[11.5px]">
+                    {s.sector_focus && (
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Sector focus</div>
+                        <div className="text-foreground leading-snug">{s.sector_focus}</div>
+                      </div>
+                    )}
+                    {s.minimum_project_size && (
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Minimum</div>
+                        <div className="text-foreground leading-snug">{s.minimum_project_size}</div>
+                      </div>
+                    )}
+                    {s.application_process && (
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Apply</div>
+                        <div className="text-foreground leading-snug">{s.application_process}</div>
+                      </div>
+                    )}
+                    {s.contact && (
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Contact</div>
+                        <div className="text-foreground leading-snug">{s.contact}</div>
+                      </div>
+                    )}
+                    {s.fit_rationale && (
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Why for CSTEM Global</div>
+                        <div className="text-foreground leading-snug">{s.fit_rationale}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  data-testid={`sponsor-toggle-${s.id}`}
+                  onClick={() => setExpandedId(open ? null : s.id)}
+                  className="mt-2.5 text-[11px] text-primary hover:underline"
+                >
+                  {open ? "Show less" : "Show details"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------
 // Page shell
 // ---------------------------------------------------------------------
 export default function Agents() {
@@ -727,6 +922,8 @@ export default function Agents() {
       />
 
       <GrantManagerLive />
+
+      <FiscalSponsorsCard />
 
       <div className="grid xl:grid-cols-[1.15fr_0.85fr] gap-3 mt-6">
         <SectionCard
