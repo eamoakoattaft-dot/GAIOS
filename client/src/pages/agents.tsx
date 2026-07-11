@@ -189,6 +189,8 @@ type Recommendation = {
     eligibility_flags?: Array<{ code: string; label: string; penalty: number; disqualify?: boolean }>;
     eligibility_penalty?: number;
     disqualified?: boolean;
+    fit_summary?: string;
+    deadline_bucket?: "urgent-10" | "soon-30" | "comfortable-60" | "later" | "past" | "none";
   };
   status: "pending" | "approved" | "declined" | "partner_review";
   generated_at: string;
@@ -410,6 +412,18 @@ function GrantManagerLive() {
   const paged = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
   const kpiPending = recs.filter((r) => r.status === "pending").length;
+  const urgentActionable = recs.filter(
+    (r) =>
+      r.status === "pending" &&
+      (r.recommendation === "Pursue" || r.recommendation === "Partner") &&
+      r.rationale?.deadline_bucket === "urgent-10"
+  );
+  const soonActionable = recs.filter(
+    (r) =>
+      r.status === "pending" &&
+      (r.recommendation === "Pursue" || r.recommendation === "Partner") &&
+      r.rationale?.deadline_bucket === "soon-30"
+  );
   const kpiApproved = recs.filter((r) => r.status === "approved").length;
   const kpiTotal = recs.length;
   const kpiAvg = kpiTotal ? Math.round(recs.reduce((s, r) => s + Number(r.score), 0) / kpiTotal) : 0;
@@ -528,11 +542,41 @@ function GrantManagerLive() {
           </div>
         )}
 
+        {(urgentActionable.length > 0 || soonActionable.length > 0) && (
+          <div
+            data-testid="deadline-alert-banner"
+            className={cn(
+              "mb-4 rounded-md border px-3 py-2.5 text-[12px]",
+              urgentActionable.length > 0
+                ? "border-[hsl(var(--status-danger)/0.45)] bg-[hsl(var(--status-danger)/0.07)] text-foreground"
+                : "border-[hsl(var(--status-warning)/0.45)] bg-[hsl(var(--status-warning)/0.07)] text-foreground"
+            )}
+          >
+            <div className="flex items-start gap-2">
+              <div className="font-semibold tracking-tight">
+                Deadlines needing attention:
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {urgentActionable.length > 0 && (
+                  <span data-testid="deadline-count-urgent-10" className="text-[hsl(var(--status-danger))] font-medium">
+                    {urgentActionable.length} due within 10 days
+                  </span>
+                )}
+                {soonActionable.length > 0 && (
+                  <span data-testid="deadline-count-soon-30" className="text-[hsl(var(--status-warning))] font-medium">
+                    {soonActionable.length} due within 30 days
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <KPI label="Opportunities scored" value={kpiTotal} delta={`${lastGrantsRun?.opportunities_new ?? 0} new run`} trend="up" testid="kpi-gm-total" />
           <KPI label="Pending review" value={kpiPending} delta="human gate" trend="flat" testid="kpi-gm-pending" />
           <KPI label="Approved to pursue" value={kpiApproved} delta="in pipeline" trend="up" testid="kpi-gm-approved" />
-          <KPI label="Average score" value={`${kpiAvg}`} delta="0–100" trend="flat" hint="Rule-based scorer v2 (eligibility-aware)" testid="kpi-gm-avg" />
+          <KPI label="Average score" value={`${kpiAvg}`} delta="0–100" trend="flat" hint="Rule-based scorer v3 (summaries + deadlines)" testid="kpi-gm-avg" />
         </div>
 
         <div className="flex items-center justify-between mb-3">
@@ -604,7 +648,18 @@ function GrantManagerLive() {
                             ext?.title ?? "—"
                           )}
                         </div>
-                        <div className="mt-0.5 text-[10.5px] text-muted-foreground">
+                        {r.rationale?.fit_summary && (
+                          <div
+                            data-testid={`fit-summary-${r.id}`}
+                            className={cn(
+                              "mt-1 text-[11.5px] leading-snug",
+                              r.rationale?.disqualified ? "text-[hsl(var(--status-danger))]" : "text-foreground/80"
+                            )}
+                          >
+                            {r.rationale.fit_summary}
+                          </div>
+                        )}
+                        <div className="mt-1 text-[10.5px] text-muted-foreground">
                           {ext?.source} · {ext?.opportunity_number ?? ext?.notice_id}
                           {r.rationale?.matched_keywords?.length ? ` · kw: ${r.rationale.matched_keywords.slice(0, 3).join(", ")}` : ""}
                         </div>
@@ -633,7 +688,20 @@ function GrantManagerLive() {
                       <td className="py-2.5 px-3 tabular-nums text-muted-foreground">
                         {ext?.response_deadline ? new Date(ext.response_deadline).toISOString().slice(0, 10) : "—"}
                         {typeof days === "number" && (
-                          <div className="text-[10.5px]">{days >= 0 ? `${days}d left` : `${Math.abs(days)}d past`}</div>
+                          <div className={cn(
+                            "mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                            r.rationale?.deadline_bucket === "urgent-10"
+                              ? "bg-[hsl(var(--status-danger)/0.16)] text-[hsl(var(--status-danger))]"
+                              : r.rationale?.deadline_bucket === "soon-30"
+                                ? "bg-[hsl(var(--status-warning)/0.16)] text-[hsl(var(--status-warning))]"
+                                : r.rationale?.deadline_bucket === "past"
+                                  ? "bg-muted text-muted-foreground line-through"
+                                  : "bg-transparent text-muted-foreground"
+                          )}
+                          data-testid={`deadline-chip-${r.id}`}
+                          >
+                            {days >= 0 ? `${days}d left` : `${Math.abs(days)}d past`}
+                          </div>
                         )}
                       </td>
                       <td className="py-2.5 px-3">
